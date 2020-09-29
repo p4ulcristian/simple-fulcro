@@ -3,12 +3,14 @@
     [app.server-components.config :refer [config]]
     [app.server-components.pathom :refer [parser]]
     [mount.core :refer [defstate]]
+    [reitit.ring :as reitit-ring]
     [com.fulcrologic.fulcro.server.api-middleware :refer [handle-api-request
                                                           wrap-transit-params
                                                           wrap-transit-response]]
     [ring.middleware.defaults :refer [wrap-defaults]]
     [ring.middleware.gzip :refer [wrap-gzip]]
     [ring.util.response :refer [response file-response resource-response]]
+    [ring.middleware.reload :refer [wrap-reload]]
     [ring.util.response :as resp]
     [hiccup.page :refer [html5]]
     [taoensso.timbre :as log]))
@@ -84,18 +86,42 @@
       :else
       (ring-handler req))))
 
+
+(defn request-wrap [status content-type body]
+  "wrap request with status and headers"
+  {:status  status
+   :headers {"Content-Type" content-type}
+   :body    body})
+
+(defn html-wrap [content]
+  "Wrap Html"
+  (request-wrap 200 "text/html" content))
+
+(defn text-wrap [content]
+  "Wrap Plain Text"
+  (request-wrap 200 "text/plain" (str content)))
+
+
+
 (defstate middleware
   :start
   (let [defaults-config (:ring.middleware/defaults-config config)
         legal-origins   (get config :legal-origins #{"localhost"})]
-    (-> not-found-handler
-      (wrap-api "/api")
-      wrap-transit-params
-      wrap-transit-response
-      (wrap-html-routes)
-      ;; If you want to set something like session store, you'd do it against
-      ;; the defaults-config here (which comes from an EDN file, so it can't have
-      ;; code initialized).
-      ;; E.g. (wrap-defaults (assoc-in defaults-config [:session :store] (my-store)))
-      (wrap-defaults defaults-config)
-      wrap-gzip)))
+    (reitit-ring/ring-handler
+      (reitit-ring/router
+        [["/" {:get {:handler (fn [{:keys [uri anti-forgery-token] :as req}] (html-wrap (index anti-forgery-token)))}}]
+         ["/messenger-bot" {:get {:handler (fn [req] (text-wrap "hellodsa"))}}]])
+      (reitit-ring/routes
+        (reitit-ring/create-resource-handler {:path "/" :root "/public"}))
+      ;(reitit-ring/create-default-handler))
+      {:middleware [wrap-transit-params
+                    wrap-transit-response
+                    #(wrap-api % "/api")
+                    ;; If you want to set something like session store, you'd do it against
+                    ;; the defaults-config here (which comes from an EDN file, so it can't have
+                    ;; code initialized).
+                    ;; E.g. (wrap-defaults (assoc-in defaults-config [:session :store] (my-store)))
+                    #(wrap-defaults % defaults-config)
+                    wrap-gzip
+                    #(wrap-gzip %)]})))
+

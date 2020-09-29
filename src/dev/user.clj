@@ -4,6 +4,9 @@
     [expound.alpha :as expound]
     [clojure.spec.alpha :as s]
     [mount.core :as mount]
+    [shadow.cljs.devtools.server :as server]
+    [shadow.cljs.devtools.api :as shadow]
+
     ;; this is the top-level dependent component...mount will find the rest via ns requires
     [app.server-components.http-server :refer [http-server]]))
 
@@ -12,9 +15,16 @@
 ;; Change the default output of spec to be more readable
 (alter-var-root #'s/*explain-out* (constantly expound/printer))
 
+(defn start-shadow []
+  (server/stop!)
+  (server/start!)
+  (shadow/watch :main))
+
 (defn start
   "Start the web server"
-  [] (mount/start))
+  []
+  (start-shadow)
+  (mount/start))
 
 (defn stop
   "Stop the web server"
