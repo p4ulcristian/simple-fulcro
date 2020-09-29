@@ -19,8 +19,10 @@
 
            ;; To simulate Datomic on the back-end
            datascript                          {:mvn/version "0.18.7"}
+           clj-http                            {:mvn/version "3.10.3"}
 
            ring                                {:mvn/version "1.8.1"}
+           ring/ring-json                      {:mvn/version "0.5.0"}
            ring/ring-defaults                  {:mvn/version "0.3.2"}}
 
  :aliases {:clj-tests {:extra-paths ["src/test"]

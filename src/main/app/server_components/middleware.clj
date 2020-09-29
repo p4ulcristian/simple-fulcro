@@ -2,6 +2,8 @@
   (:require
     [app.server-components.config :refer [config]]
     [app.server-components.pathom :refer [parser]]
+    [app.server-components.messenger :as messenger]
+    [ring.middleware.json :refer [wrap-json-body]]
     [mount.core :refer [defstate]]
     [reitit.ring :as reitit-ring]
     [com.fulcrologic.fulcro.server.api-middleware :refer [handle-api-request
@@ -9,6 +11,7 @@
                                                           wrap-transit-response]]
     [ring.middleware.defaults :refer [wrap-defaults]]
     [ring.middleware.gzip :refer [wrap-gzip]]
+    [ring.middleware.keyword-params :refer [wrap-keyword-params]]
     [ring.util.response :refer [response file-response resource-response]]
     [ring.middleware.reload :refer [wrap-reload]]
     [ring.util.response :as resp]
@@ -76,12 +79,12 @@
     (cond
       (#{"/" "/index.html"} uri)
       (-> (resp/response (index anti-forgery-token))
-        (resp/content-type "text/html"))
+          (resp/content-type "text/html"))
 
       ;; See note above on the `wslive` function.
       (#{"/wslive.html"} uri)
       (-> (resp/response (wslive anti-forgery-token))
-        (resp/content-type "text/html"))
+          (resp/content-type "text/html"))
 
       :else
       (ring-handler req))))
@@ -104,24 +107,29 @@
 
 
 (defstate middleware
-  :start
-  (let [defaults-config (:ring.middleware/defaults-config config)
-        legal-origins   (get config :legal-origins #{"localhost"})]
-    (reitit-ring/ring-handler
-      (reitit-ring/router
-        [["/" {:get {:handler (fn [{:keys [uri anti-forgery-token] :as req}] (html-wrap (index anti-forgery-token)))}}]
-         ["/messenger-bot" {:get {:handler (fn [req] (text-wrap "hellodsa"))}}]])
-      (reitit-ring/routes
-        (reitit-ring/create-resource-handler {:path "/" :root "/public"}))
-      ;(reitit-ring/create-default-handler))
-      {:middleware [wrap-transit-params
-                    wrap-transit-response
-                    #(wrap-api % "/api")
-                    ;; If you want to set something like session store, you'd do it against
-                    ;; the defaults-config here (which comes from an EDN file, so it can't have
-                    ;; code initialized).
-                    ;; E.g. (wrap-defaults (assoc-in defaults-config [:session :store] (my-store)))
-                    #(wrap-defaults % defaults-config)
-                    wrap-gzip
-                    #(wrap-gzip %)]})))
+          :start
+          (let [defaults-config (:ring.middleware/defaults-config config)
+                legal-origins (get config :legal-origins #{"localhost"})]
+            (reitit-ring/ring-handler
+              (reitit-ring/router
+                [["/" {:get {:handler (fn [{:keys [uri anti-forgery-token] :as req}] (html-wrap (index anti-forgery-token)))}}]
+                 ["/messenger"
+                  [["" {:get {:handler (fn [req] (text-wrap "hellodsa"))}}]
+                   ["/webhook" {:get  {:handler messenger/webhook-get}
+                                :post {:handler messenger/webhook-post}}]]]])
+              (reitit-ring/routes
+                (reitit-ring/create-resource-handler {:path "/" :root "/public"}))
+              ;(reitit-ring/create-default-handler))
+              {:middleware [;wrap-transit-params
+                            ;wrap-transit-response
+                            ;#(wrap-api % "/api")
+                            wrap-keyword-params
+                            #(wrap-json-body % {:keywords? true})]})))
+                            ;; If you want to set something like session store, you'd do it against
+                            ;; the defaults-config here (which comes from an EDN file, so it can't have
+                            ;; code initialized).
+                            ;; E.g. (wrap-defaults (assoc-in defaults-config [:session :store] (my-store)))
+                            ;#(wrap-defaults % defaults-config)
+                            ;wrap-gzip]})))
+                            ;#(wrap-gzip %)]})))
 
