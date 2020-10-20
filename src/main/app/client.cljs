@@ -28,33 +28,37 @@
   (app/set-root! SPA root/Root {:initialize-state? true})
   (dr/initialize! SPA)
   (log/info "Starting session machine.")
-  (uism/begin! SPA session/session-machine ::session/session
-    {:actor/login-form      root/Login
-     :actor/current-session root/Session})
-  (app/mount! SPA root/Root "app" {:initialize-state? false}))
+  (.log js/console "mi folyik itt" @(:com.fulcrologic.fulcro.application/state-atom SPA))
+  ;(uism/begin! SPA session/session-machine ::session/session
+  ;  {:actor/login-form      root/Login
+  ;   :actor/current-session root/Session)
+  (app/mount! SPA root/Root "app"))
 
-(comment
-  (inspect/app-started! SPA)
-  (app/mounted? SPA)
-  (app/set-root! SPA root/Root {:initialize-state? true})
-  (uism/begin! SPA session/session-machine ::session/session
-    {:actor/login-form      root/Login
-     :actor/current-session root/Session})
 
-  (reset! (::app/state-atom SPA) {})
 
-  (merge/merge-component! SPA root/Settings {:account/time-zone "America/Los_Angeles"
-                                             :account/real-name "Joe Schmoe"})
-  (dr/initialize! SPA)
-  (app/current-state SPA)
-  (dr/change-route SPA ["settings"])
-  (app/mount! SPA root/Root "app")
-  (comp/get-query root/Root {})
-  (comp/get-query root/Root (app/current-state SPA))
-
-  (-> SPA ::app/runtime-atom deref ::app/indexes)
-  (comp/class->any SPA root/Root)
-  (let [s (app/current-state SPA)]
-    (fdn/db->tree [{[:component/id :login] [:ui/open? :ui/error :account/email
-                                            {[:root/current-session '_] (comp/get-query root/Session)}
-                                            [::uism/asm-id ::session/session]]}] {} s)))
+;(comment
+;  (inspect/app-started! SPA)
+;  (app/mounted? SPA)
+;  (app/set-root! SPA root/Root {:initialize-state? true})
+;  (uism/begin! SPA session/session-machine ::session/session
+;    {:actor/login-form      root/Login
+;     :actor/current-session root/Session})
+;
+;  (reset! (::app/state-atom SPA) {})
+;
+;  (merge/merge-component! SPA root/Settings {:account/time-zone "America/Los_Angeles"
+;                                             :account/real-name "Joe Schmoe"})
+;  (dr/initialize! SPA)
+;
+;  (app/current-state SPA)
+;  (dr/change-route SPA ["settings"])
+;  (app/mount! SPA root/Root "app")
+;  (comp/get-query root/Root {})
+;  (comp/get-query root/Root (app/current-state SPA))
+;
+;  (-> SPA ::app/runtime-atom deref ::app/indexes)
+;  (comp/class->any SPA root/Root)
+;  (let [s (app/current-state SPA)]
+;    (fdn/db->tree [{[:component/id :login] [:ui/open? :ui/error :account/email
+;                                            {[:root/current-session '_] (comp/get-query root/Session)}
+;                                            [::uism/asm-id ::session/session]]}] {} s)))

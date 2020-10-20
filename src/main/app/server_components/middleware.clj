@@ -120,16 +120,16 @@
               (reitit-ring/routes
                 (reitit-ring/create-resource-handler {:path "/" :root "/public"}))
               ;(reitit-ring/create-default-handler))
-              {:middleware [;wrap-transit-params
-                            ;wrap-transit-response
-                            ;#(wrap-api % "/api")
+              {:middleware [wrap-transit-params
+                            wrap-transit-response
+                            #(wrap-api % "/api")
                             wrap-keyword-params
-                            #(wrap-json-body % {:keywords? true})]})))
+                            #(wrap-json-body % {:keywords? true})
                             ;; If you want to set something like session store, you'd do it against
                             ;; the defaults-config here (which comes from an EDN file, so it can't have
                             ;; code initialized).
                             ;; E.g. (wrap-defaults (assoc-in defaults-config [:session :store] (my-store)))
                             ;#(wrap-defaults % defaults-config)
-                            ;wrap-gzip]})))
+                            wrap-gzip]})))
                             ;#(wrap-gzip %)]})))
 

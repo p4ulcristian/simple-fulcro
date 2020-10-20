@@ -139,6 +139,7 @@
     "button" (call-send-api sender-id (button-template))
     "generic" (call-send-api sender-id (generic-template))
     "rick" (call-send-api sender-id (opengraph-template))
+    "majom" (call-send-api sender-id {:message {:text "Te vagy a majom"}})
     (call-send-api sender-id (quick-replies))))
     ;(call-send-api sender-id {:message {:text "Ezt meg nem tudom hogy kell!"}})))
   ;(call-send-api sender-id (opengraph-template))
@@ -174,7 +175,7 @@
     challenge))
 
 (defn webhook-get [req]
-  (println "Messenger-bot webhook verification")
+  (println "Messenger-bot webhook verification" req)
   {:status  200
    :headers {"Content-Type" "text/plain"}
    :body    (get-challenge req)})

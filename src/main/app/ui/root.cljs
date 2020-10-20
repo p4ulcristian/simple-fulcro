@@ -2,6 +2,7 @@
   (:require
     [app.model.session :as session]
     [clojure.string :as str]
+    [app.application :refer [SPA]]
     [com.fulcrologic.fulcro.dom :as dom :refer [div ul li p h3 button b]]
     [com.fulcrologic.fulcro.dom.html-entities :as ent]
     [com.fulcrologic.fulcro.dom.events :as evt]
@@ -141,7 +142,8 @@
    :ident         (fn [] [:component/id :main])
    :route-segment ["main"]}
   (div :.ui.container.segment
-    (h3 "Main")))
+       (h3 "Main")))
+
 
 (defsc Settings [this {:keys [:account/time-zone :account/real-name] :as props}]
   {:query         [:account/time-zone :account/real-name]
@@ -193,9 +195,87 @@
         (div :.ui.row
           (ui-top-router router))))))
 
+
+
+
+
+
+
+
+
+
+
+(defmutation make-older [{:gamer/keys [id]}]
+  (action [{:keys [state]}]
+          (.log js/console "mi a palya mutation" state)
+          (swap! state update-in [:gamer/id id :gamer/age] inc)))
+
+
+
+(defsc Game [this {:game/keys [name]}]
+  {:query [:game/name]
+   :ident :game/name
+   :initial-state {:game/name :param/name}}
+  (div (str name)))
+
+(def ui-game (comp/factory Game))
+
+
+
+
+(defsc Gamer [this {:gamer/keys [id age name games]}]
+  {:ident :gamer/id
+   :query [:gamer/id :gamer/age :gamer/name  {:gamer/games (comp/get-query Game)}]
+   :initial-state {:gamer/id :param/id
+                   :gamer/name :param/name
+                   :gamer/age :param/age
+                   :gamer/games :param/games}};:initial-state (fn [val] {:random/number 1})}
+   ;:ident         (fn [] [:component/id :random])}
+  (div {:style {:background "#999"}}
+    (dom/h1 (str "Gamer neve,kora : " name " : " age))
+    (div (dom/button {:onClick #(comp/transact! this [(make-older {:gamer/id 1})])}
+                     "Novelj kort"))
+    (dom/h1
+      "Jatekai: "
+      (div (map ui-game games)))))
+
+(def ui-gamer (comp/factory Gamer))
+
 (def ui-top-chrome (comp/factory TopChrome))
 
-(defsc Root [this {:root/keys [top-chrome]}]
-  {:query         [{:root/top-chrome (comp/get-query TopChrome)}]
-   :initial-state {:root/top-chrome {}}}
-  (ui-top-chrome top-chrome))
+
+
+
+
+
+
+
+
+(defsc Gaming-Station [this {:gaming-station/keys [id name gamers] :as props}]
+  {:ident :gaming-station/id
+   :query [:gaming-station/name :gaming-station/id {:gaming-station/gamers (comp/get-query Gamer)}]}
+  (div {:style {:background "#666"}}
+    (dom/h2  (str "gep neve: " name))
+    (div (str "hello" gamers))))
+
+(def ui-gaming-station (comp/factory Gaming-Station))
+
+(defsc Root [this {:root/keys [gamer gaming-station all-games]}]
+  {:query [:root/all-games
+           {:root/gamer (comp/get-query Gamer)}
+           {:root/gaming-station (comp/get-query Gaming-Station)}]
+
+   :initial-state {:root/all-games [{:game/name "Fallout"} {:game/name "Overwatch"} {:game/name "Wow"}
+                                    {:game/name "Fallout2"} {:game/name "Mario"} {:game/name "Wowolda"}]
+
+                   :root/gaming-station {:gaming-station/id 1 :gaming-station/name "zelda"}
+                   :root/gamer {:id 1
+                                :name "Lol itt a nev"
+                                :age 12
+                                :games [{:name "Fallout"} {:name "Overwatch"} {:name "Wow"}]}}}
+  (comp/fragment
+    "Root"
+    (ui-gaming-station gaming-station)
+    (ui-gamer gamer)
+    (div {:style {:background "#CCC"}}
+      (map ui-game all-games))))
