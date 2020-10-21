@@ -1,6 +1,6 @@
 (ns app.model.session
   (:require
-    [app.application :refer [SPA]]
+    [app.application :refer [web-app]]
     [com.fulcrologic.fulcro.routing.dynamic-routing :as dr]
     [com.fulcrologic.fulcro.ui-state-machines :as uism]
     [taoensso.timbre :as log]
@@ -33,7 +33,7 @@
 (defn process-session-result [env error-message]
   (let [success? (uism/alias-value env :session-valid?)]
     (when success?
-      (dr/change-route SPA ["main"]))
+      (dr/change-route web-app ["main"]))
     (cond-> (clear env)
       success? (->
                  (uism/assoc-aliased :modal-open? false)
@@ -60,7 +60,7 @@
    {:initial
     {::uism/target-states #{:state/logged-in :state/logged-out}
      ::uism/events        {::uism/started  {::uism/handler (fn [env]
-                                                             (dr/change-route SPA ["main"])
+                                                             (dr/change-route web-app ["main"])
                                                              (-> env
                                                                (uism/assoc-aliased :error "")
                                                                (uism/load ::current-session :actor/current-session

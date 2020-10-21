@@ -2,7 +2,8 @@
   (:require
     [app.model.session :as session]
     [clojure.string :as str]
-    [app.application :refer [SPA]]
+    [app.application :refer [web-app]]
+    [com.fulcrologic.fulcro.data-fetch :as df]
     [com.fulcrologic.fulcro.dom :as dom :refer [div ul li p h3 button b]]
     [com.fulcrologic.fulcro.dom.html-entities :as ent]
     [com.fulcrologic.fulcro.dom.events :as evt]
@@ -251,31 +252,38 @@
 
 
 
-(defsc Gaming-Station [this {:gaming-station/keys [id name gamers] :as props}]
-  {:ident :gaming-station/id
-   :query [:gaming-station/name :gaming-station/id {:gaming-station/gamers (comp/get-query Gamer)}]}
+(defsc game-station [this {:game-station/keys [id name] :as props}]
+  {:ident :game-station/id
+   :query [:game-station/name :game-station/id :game-station/player]
+   :initial-state (fn [wat] {:game-station/id 1 :game-station/name "Initial"})}
   (div {:style {:background "#666"}}
-    (dom/h2  (str "gep neve: " name))
-    (div (str "hello" gamers))))
+    (dom/h2  (str "gep neve: " name))))
+    ;(div (str "hello" gamers))))
 
-(def ui-gaming-station (comp/factory Gaming-Station))
+(def ui-game-station (comp/factory game-station))
 
-(defsc Root [this {:root/keys [gamer gaming-station all-games]}]
+(defsc Root [this {:root/keys [gamer game-station all-games]}]
   {:query [:root/all-games
+           :hello/peti
            {:root/gamer (comp/get-query Gamer)}
-           {:root/gaming-station (comp/get-query Gaming-Station)}]
+           {:root/game-station (comp/get-query game-station)}]
 
-   :initial-state {:root/all-games [{:game/name "Fallout"} {:game/name "Overwatch"} {:game/name "Wow"}
+   :initial-state {:hello/peti "lokalisan"
+                   :root/all-games [{:game/name "Fallout"} {:game/name "Overwatch"} {:game/name "Wow"}
                                     {:game/name "Fallout2"} {:game/name "Mario"} {:game/name "Wowolda"}]
 
-                   :root/gaming-station {:gaming-station/id 1 :gaming-station/name "zelda"}
+                   :root/game-station {:game-station/id 1 :game-station/name "zelda"}
                    :root/gamer {:id 1
                                 :name "Lol itt a nev"
                                 :age 12
                                 :games [{:name "Fallout"} {:name "Overwatch"} {:name "Wow"}]}}}
   (comp/fragment
     "Root"
-    (ui-gaming-station gaming-station)
+    (ui-game-station game-station)
     (ui-gamer gamer)
+    (button {:onClick #(do
+                         ()
+                         (df/load! this :all-game-stations game-station))}
+            "Betoltes gomb")
     (div {:style {:background "#CCC"}}
       (map ui-game all-games))))
