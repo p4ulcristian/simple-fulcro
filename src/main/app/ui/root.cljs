@@ -17,185 +17,184 @@
     [com.fulcrologic.fulcro.algorithms.form-state :as fs]
     [taoensso.timbre :as log]))
 
-(defn field [{:keys [label valid? error-message] :as props}]
-  (let [input-props (-> props (assoc :name label) (dissoc :label :valid? :error-message))]
-    (div :.ui.field
-      (dom/label {:htmlFor label} label)
-      (dom/input input-props)
-      (dom/div :.ui.error.message {:classes [(when valid? "hidden")]}
-        error-message))))
-
-(defsc SignupSuccess [this props]
-  {:query         ['*]
-   :initial-state {}
-   :ident         (fn [] [:component/id :signup-success])
-   :route-segment ["signup-success"]}
-  (div
-    (dom/h3 "Signup Complete!")
-    (dom/p "You can now log in!")))
-
-(defsc Signup [this {:account/keys [email password password-again] :as props}]
-  {:query             [:account/email :account/password :account/password-again fs/form-config-join]
-   :initial-state     (fn [_]
-                        (fs/add-form-config Signup
-                          {:account/email          ""
-                           :account/password       ""
-                           :account/password-again ""}))
-   :form-fields       #{:account/email :account/password :account/password-again}
-   :ident             (fn [] session/signup-ident)
-   :route-segment     ["signup"]
-   :componentDidMount (fn [this]
-                        (comp/transact! this [(session/clear-signup-form)]))}
-  (let [submit!  (fn [evt]
-                   (when (or (identical? true evt) (evt/enter-key? evt))
-                     (comp/transact! this [(session/signup! {:email email :password password})])
-                     (log/info "Sign up")))
-        checked? (fs/checked? props)]
-    (div
-      (dom/h3 "Signup")
-      (div :.ui.form {:classes [(when checked? "error")]}
-        (field {:label         "Email"
-                :value         (or email "")
-                :valid?        (session/valid-email? email)
-                :error-message "Must be an email address"
-                :autoComplete  "off"
-                :onKeyDown     submit!
-                :onChange      #(m/set-string! this :account/email :event %)})
-        (field {:label         "Password"
-                :type          "password"
-                :value         (or password "")
-                :valid?        (session/valid-password? password)
-                :error-message "Password must be at least 8 characters."
-                :onKeyDown     submit!
-                :autoComplete  "off"
-                :onChange      #(m/set-string! this :account/password :event %)})
-        (field {:label         "Repeat Password" :type "password" :value (or password-again "")
-                :autoComplete  "off"
-                :valid?        (= password password-again)
-                :error-message "Passwords do not match."
-                :onChange      #(m/set-string! this :account/password-again :event %)})
-        (dom/button :.ui.primary.button {:onClick #(submit! true)}
-          "Sign Up")))))
-
-(declare Session)
-
-(defsc Login [this {:account/keys [email]
-                    :ui/keys      [error open?] :as props}]
-  {:query         [:ui/open? :ui/error :account/email
-                   {[:component/id :session] (comp/get-query Session)}
-                   [::uism/asm-id ::session/session]]
-   :css           [[:.floating-menu {:position "absolute !important"
-                                     :z-index  1000
-                                     :width    "300px"
-                                     :right    "0px"
-                                     :top      "50px"}]]
-   :initial-state {:account/email "" :ui/error ""}
-   :ident         (fn [] [:component/id :login])}
-  (let [current-state (uism/get-active-state this ::session/session)
-        {current-user :account/name} (get props [:component/id :session])
-        initial?      (= :initial current-state)
-        loading?      (= :state/checking-session current-state)
-        logged-in?    (= :state/logged-in current-state)
-        {:keys [floating-menu]} (css/get-classnames Login)
-        password      (or (comp/get-state this :password) "")] ; c.l. state for security
-    (dom/div
-      (when-not initial?
-        (dom/div :.right.menu
-          (if logged-in?
-            (dom/button :.item
-              {:onClick #(uism/trigger! this ::session/session :event/logout)}
-              (dom/span current-user) ent/nbsp "Log out")
-            (dom/div :.item {:style   {:position "relative"}
-                             :onClick #(uism/trigger! this ::session/session :event/toggle-modal)}
-              "Login"
-              (when open?
-                (dom/div :.four.wide.ui.raised.teal.segment {:onClick (fn [e]
-                                                                        ;; Stop bubbling (would trigger the menu toggle)
-                                                                        (evt/stop-propagation! e))
-                                                             :classes [floating-menu]}
-                  (dom/h3 :.ui.header "Login")
-                  (div :.ui.form {:classes [(when (seq error) "error")]}
-                    (field {:label    "Email"
-                            :value    email
-                            :onChange #(m/set-string! this :account/email :event %)})
-                    (field {:label    "Password"
-                            :type     "password"
-                            :value    password
-                            :onChange #(comp/set-state! this {:password (evt/target-value %)})})
-                    (div :.ui.error.message error)
-                    (div :.ui.field
-                      (dom/button :.ui.button
-                        {:onClick (fn [] (uism/trigger! this ::session/session :event/login {:username email
-                                                                                             :password password}))
-                         :classes [(when loading? "loading")]} "Login"))
-                    (div :.ui.message
-                      (dom/p "Don't have an account?")
-                      (dom/a {:onClick (fn []
-                                         (uism/trigger! this ::session/session :event/toggle-modal {})
-                                         (dr/change-route this ["signup"]))}
-                        "Please sign up!"))))))))))))
-
-(def ui-login (comp/factory Login))
-
-(defsc Main [this props]
-  {:query         [:main/welcome-message]
-   :initial-state {:main/welcome-message "Hi!"}
-   :ident         (fn [] [:component/id :main])
-   :route-segment ["main"]}
-  (div :.ui.container.segment
-       (h3 "Main")))
-
-
-(defsc Settings [this {:keys [:account/time-zone :account/real-name] :as props}]
-  {:query         [:account/time-zone :account/real-name]
-   :ident         (fn [] [:component/id :settings])
-   :route-segment ["settings"]
-   :initial-state {}}
-  (div :.ui.container.segment
-       (h3 "Settings")
-       (div
-        (p (b "Name: ") real-name)
-        (p (b "Time Zone: ") time-zone))))
-
-(dr/defrouter TopRouter [this props]
-  {:router-targets [Main Signup SignupSuccess Settings]})
-
-(def ui-top-router (comp/factory TopRouter))
-
-(defsc Session
-  "Session representation. Used primarily for server queries. On-screen representation happens in Login component."
-  [this {:keys [:session/valid? :account/name] :as props}]
-  {:query         [:session/valid? :account/name]
-   :ident         (fn [] [:component/id :session])
-   :pre-merge     (fn [{:keys [data-tree]}]
-                    (merge {:session/valid? false :account/name ""}
-                      data-tree))
-   :initial-state {:session/valid? false :account/name ""}})
-
-(def ui-session (comp/factory Session))
-
-(defsc TopChrome [this {:root/keys [router current-session login]}]
-  {:query         [{:root/router (comp/get-query TopRouter)}
-                   {:root/current-session (comp/get-query Session)}
-                   [::uism/asm-id ::TopRouter]
-                   {:root/login (comp/get-query Login)}]
-   :ident         (fn [] [:component/id :top-chrome])
-   :initial-state {:root/router          {}
-                   :root/login           {}
-                   :root/current-session {}}}
-  (let [current-tab (some-> (dr/current-route this this) first keyword)]
-    (div :.ui.container
-      (div :.ui.secondary.pointing.menu
-        (dom/a :.item {:classes [(when (= :main current-tab) "active")]
-                       :onClick (fn [] (dr/change-route this ["main"]))} "Main")
-        (dom/a :.item {:classes [(when (= :settings current-tab) "active")]
-                       :onClick (fn [] (dr/change-route this ["settings"]))} "Settings")
-        (div :.right.menu
-          (ui-login login)))
-      (div :.ui.grid
-        (div :.ui.row
-          (ui-top-router router))))))
-
+;(defn field [{:keys [label valid? error-message] :as props}]
+;  (let [input-props (-> props (assoc :name label) (dissoc :label :valid? :error-message))]
+;    (div :.ui.field
+;      (dom/label {:htmlFor label} label)
+;      (dom/input input-props)
+;      (dom/div :.ui.error.message {:classes [(when valid? "hidden")]}
+;        error-message))))
+;
+;(defsc SignupSuccess [this props]
+;  {:query         ['*]
+;   :initial-state {}
+;   :ident         (fn [] [:component/id :signup-success])
+;   :route-segment ["signup-success"]}
+;  (div
+;    (dom/h3 "Signup Complete!")
+;    (dom/p "You can now log in!")))
+;
+;(defsc Signup [this {:account/keys [email password password-again] :as props}]
+;  {:query             [:account/email :account/password :account/password-again fs/form-config-join]
+;   :initial-state     (fn [_]
+;                        (fs/add-form-config Signup
+;                          {:account/email          ""
+;                           :account/password       ""
+;                           :account/password-again ""}))
+;   :form-fields       #{:account/email :account/password :account/password-again}
+;   :ident             (fn [] session/signup-ident)
+;   :route-segment     ["signup"]
+;   :componentDidMount (fn [this]
+;                        (comp/transact! this [(session/clear-signup-form)]))}
+;  (let [submit!  (fn [evt]
+;                   (when (or (identical? true evt) (evt/enter-key? evt))
+;                     (comp/transact! this [(session/signup! {:email email :password password})])
+;                     (log/info "Sign up")))
+;        checked? (fs/checked? props)]
+;    (div
+;      (dom/h3 "Signup")
+;      (div :.ui.form {:classes [(when checked? "error")]}
+;        (field {:label         "Email"
+;                :value         (or email "")
+;                :valid?        (session/valid-email? email)
+;                :error-message "Must be an email address"
+;                :autoComplete  "off"
+;                :onKeyDown     submit!
+;                :onChange      #(m/set-string! this :account/email :event %)})
+;        (field {:label         "Password"
+;                :type          "password"
+;                :value         (or password "")
+;                :valid?        (session/valid-password? password)
+;                :error-message "Password must be at least 8 characters."
+;                :onKeyDown     submit!
+;                :autoComplete  "off"
+;                :onChange      #(m/set-string! this :account/password :event %)})
+;        (field {:label         "Repeat Password" :type "password" :value (or password-again "")
+;                :autoComplete  "off"
+;                :valid?        (= password password-again)
+;                :error-message "Passwords do not match."
+;                :onChange      #(m/set-string! this :account/password-again :event %)})
+;        (dom/button :.ui.primary.button {:onClick #(submit! true)}
+;          "Sign Up")))))
+;
+;(declare Session)
+;
+;(defsc Login [this {:account/keys [email]
+;                    :ui/keys      [error open?] :as props}]
+;  {:query         [:ui/open? :ui/error :account/email
+;                   {[:component/id :session] (comp/get-query Session)}
+;                   [::uism/asm-id ::session/session]]
+;   :css           [[:.floating-menu {:position "absolute !important"
+;                                     :z-index  1000
+;                                     :width    "300px"
+;                                     :right    "0px"
+;                                     :top      "50px"}]]
+;   :initial-state {:account/email "" :ui/error ""}
+;   :ident         (fn [] [:component/id :login])}
+;  (let [current-state (uism/get-active-state this ::session/session)
+;        {current-user :account/name} (get props [:component/id :session])
+;        initial?      (= :initial current-state)
+;        loading?      (= :state/checking-session current-state)
+;        logged-in?    (= :state/logged-in current-state)
+;        {:keys [floating-menu]} (css/get-classnames Login)
+;        password      (or (comp/get-state this :password) "")] ; c.l. state for security
+;    (dom/div
+;      (when-not initial?
+;        (dom/div :.right.menu
+;          (if logged-in?
+;            (dom/button :.item
+;              {:onClick #(uism/trigger! this ::session/session :event/logout)}
+;              (dom/span current-user) ent/nbsp "Log out")
+;            (dom/div :.item {:style   {:position "relative"}
+;                             :onClick #(uism/trigger! this ::session/session :event/toggle-modal)}
+;              "Login"
+;              (when open?
+;                (dom/div :.four.wide.ui.raised.teal.segment {:onClick (fn [e]
+;                                                                        ;; Stop bubbling (would trigger the menu toggle)
+;                                                                        (evt/stop-propagation! e))
+;                                                             :classes [floating-menu]}
+;                  (dom/h3 :.ui.header "Login")
+;                  (div :.ui.form {:classes [(when (seq error) "error")]}
+;                    (field {:label    "Email"
+;                            :value    email
+;                            :onChange #(m/set-string! this :account/email :event %)})
+;                    (field {:label    "Password"
+;                            :type     "password"
+;                            :value    password
+;                            :onChange #(comp/set-state! this {:password (evt/target-value %)})})
+;                    (div :.ui.error.message error)
+;                    (div :.ui.field
+;                      (dom/button :.ui.button
+;                        {:onClick (fn [] (uism/trigger! this ::session/session :event/login {:username email
+;                                                                                             :password password}))
+;                         :classes [(when loading? "loading")]} "Login"))
+;                    (div :.ui.message
+;                      (dom/p "Don't have an account?")
+;                      (dom/a {:onClick (fn []
+;                                         (uism/trigger! this ::session/session :event/toggle-modal {})
+;                                         (dr/change-route this ["signup"]))}
+;                        "Please sign up!"))))))))))))
+;
+;(def ui-login (comp/factory Login))
+;
+;(defsc Main [this props]
+;  {:query         [:main/welcome-message]
+;   :initial-state {:main/welcome-message "Hi!"}
+;   :ident         (fn [] [:component/id :main])
+;   :route-segment ["main"]}
+;  (div :.ui.container.segment
+;       (h3 "Main")))
+;
+;
+;(defsc Settings [this {:keys [:account/time-zone :account/real-name] :as props}]
+;  {:query         [:account/time-zone :account/real-name]
+;   :ident         (fn [] [:component/id :settings])
+;   :route-segment ["settings"]
+;   :initial-state {}}
+;  (div :.ui.container.segment
+;       (h3 "Settings")
+;       (div
+;        (p (b "Name: ") real-name)
+;        (p (b "Time Zone: ") time-zone))))
+;
+;(dr/defrouter TopRouter [this props]
+;  {:router-targets [Main Signup SignupSuccess Settings]})
+;
+;(def ui-top-router (comp/factory TopRouter))
+;
+;(defsc Session
+;  "Session representation. Used primarily for server queries. On-screen representation happens in Login component."
+;  [this {:keys [:session/valid? :account/name] :as props}]
+;  {:query         [:session/valid? :account/name]
+;   :ident         (fn [] [:component/id :session])
+;   :pre-merge     (fn [{:keys [data-tree]}]
+;                    (merge {:session/valid? false :account/name ""}
+;                      data-tree))
+;   :initial-state {:session/valid? false :account/name ""}})
+;
+;(def ui-session (comp/factory Session))
+;
+;(defsc TopChrome [this {:root/keys [router current-session login]}]
+;  {:query         [{:root/router (comp/get-query TopRouter)}
+;                   {:root/current-session (comp/get-query Session)}
+;                   [::uism/asm-id ::TopRouter]
+;                   {:root/login (comp/get-query Login)}]
+;   :ident         (fn [] [:component/id :top-chrome])
+;   :initial-state {:root/router          {}
+;                   :root/login           {}
+;                   :root/current-session {}}}
+;  (let [current-tab (some-> (dr/current-route this this) first keyword)]
+;    (div :.ui.container
+;      (div :.ui.secondary.pointing.menu
+;        (dom/a :.item {:classes [(when (= :main current-tab) "active")]
+;                       :onClick (fn [] (dr/change-route this ["main"]))} "Main")
+;        (dom/a :.item {:classes [(when (= :settings current-tab) "active")]
+;                       :onClick (fn [] (dr/change-route this ["settings"]))} "Settings")
+;        (div :.right.menu
+;          (ui-login login)))
+;      (div :.ui.grid
+;        (div :.ui.row
+;          (ui-top-router router))))))
 
 
 
@@ -213,36 +212,6 @@
 
 
 
-(defsc Game [this {:game/keys [name]}]
-  {:query [:game/name]
-   :ident :game/name
-   :initial-state {:game/name :param/name}}
-  (div (str name)))
-
-(def ui-game (comp/factory Game))
-
-
-
-
-(defsc Gamer [this {:gamer/keys [id age name games]}]
-  {:ident :gamer/id
-   :query [:gamer/id :gamer/age :gamer/name  {:gamer/games (comp/get-query Game)}]
-   :initial-state {:gamer/id :param/id
-                   :gamer/name :param/name
-                   :gamer/age :param/age
-                   :gamer/games :param/games}};:initial-state (fn [val] {:random/number 1})}
-   ;:ident         (fn [] [:component/id :random])}
-  (div {:style {:background "#999"}}
-    (dom/h1 (str "Gamer neve,kora : " name " : " age))
-    (div (dom/button {:onClick #(comp/transact! this [(make-older {:gamer/id 1})])}
-                     "Novelj kort"))
-    (dom/h1
-      "Jatekai: "
-      (div (map ui-game games)))))
-
-(def ui-gamer (comp/factory Gamer))
-
-(def ui-top-chrome (comp/factory TopChrome))
 
 
 
@@ -252,38 +221,66 @@
 
 
 
-(defsc game-station [this {:game-station/keys [id name] :as props}]
-  {:ident :game-station/id
-   :query [:game-station/name :game-station/id :game-station/player]
-   :initial-state (fn [wat] {:game-station/id 1 :game-station/name "Initial"})}
+
+
+
+
+
+
+(defsc x-player [this {:player/keys [id name]}]
+  {:ident :player/id
+   :query [:player/name :player/id]}
+
   (div {:style {:background "#666"}}
-    (dom/h2  (str "gep neve: " name))))
+       (dom/h4 (str id " : " name))))
+;(div (str "hello" gamers))))
+
+(def ui-player (comp/factory x-player))
+
+
+(defsc x-game-station [this {:game-station/keys [id name player] :as props}]
+  {:ident :game-station/id
+   :query [:game-station/name :game-station/id {:game-station/player (comp/get-query x-player)}]}
+
+  (div {:style {:background "#666"}}
+    (dom/h2  (str "gep neve: " name)
+       (str player))
+    (dom/h3 (str "player" (ui-player player)))))
     ;(div (str "hello" gamers))))
 
-(def ui-game-station (comp/factory game-station))
+(def ui-game-station (comp/factory x-game-station))
 
-(defsc Root [this {:root/keys [gamer game-station all-games]}]
-  {:query [:root/all-games
-           :hello/peti
-           {:root/gamer (comp/get-query Gamer)}
-           {:root/game-station (comp/get-query game-station)}]
 
-   :initial-state {:hello/peti "lokalisan"
-                   :root/all-games [{:game/name "Fallout"} {:game/name "Overwatch"} {:game/name "Wow"}
-                                    {:game/name "Fallout2"} {:game/name "Mario"} {:game/name "Wowolda"}]
 
-                   :root/game-station {:game-station/id 1 :game-station/name "zelda"}
-                   :root/gamer {:id 1
-                                :name "Lol itt a nev"
-                                :age 12
-                                :games [{:name "Fallout"} {:name "Overwatch"} {:name "Wow"}]}}}
+(def db {:eql {:game-station
+                       {:ident :game-station/id
+                        :model [:game-station/name :game-station/id {:game-station/player :player}]}
+               :player {:ident :game-station/id
+                        :model [:player/id :player/name]}}})
+
+(defsc x-game-station-list [this {:game-station-list/keys [game-stations]}]
+  {:query [{:game-station-list/game-stations (comp/get-query x-game-station)}]
+   :ident (fn [] [:component/id ::game-station-list])
+   :initial-state (fn [a] {})}
+
+  (div {:style {:background "#666"}}
+       (str "Game-stations" game-stations)
+       (map ui-game-station game-stations)))
+
+(def ui-game-station-list (comp/factory x-game-station-list))
+
+(defsc x-root [this {:root/keys [game-station-list]}]
+  {:query [{:root/game-station-list (comp/get-query x-game-station-list)}]
+   :initial-state (fn [a] {:root/game-station-list {}})}
   (comp/fragment
-    "Root"
-    (ui-game-station game-station)
-    (ui-gamer gamer)
-    (button {:onClick #(do
-                         ()
-                         (df/load! this :all-game-stations game-station))}
-            "Betoltes gomb")
-    (div {:style {:background "#CCC"}}
-      (map ui-game all-games))))
+    ;(str game-stations)
+    ;(map ui-game-station game-stations)
+    ;(ui-gamer gamer)
+    ;(str "A route: " (comp/get-query x-root))
+    ;(str "A route: " web-app)
+    (ui-game-station-list game-station-list)
+    (button {:onClick #(df/load! this :all-game-stations x-game-station
+                                 {:target [:component/id ::game-station-list :game-station-list/game-stations]})}
+            "Betoltes gomb")))
+    ;(div {:style {:background "#CCC"}}
+    ;  (map ui-game all-games))))

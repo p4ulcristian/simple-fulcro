@@ -19,24 +19,24 @@
 
 (defn ^:export refresh []
   (log/info "Hot code Remount")
-  (cssi/upsert-css "componentcss" {:component root/Root})
-  (app/mount! web-app root/Root "app"))
+  (cssi/upsert-css "componentcss" {:component root/x-root})
+  (app/mount! web-app root/x-root "app"))
 
 
 
 
 (defn ^:export init []
   (log/info "Application starting.")
-  (cssi/upsert-css "componentcss" {:component root/Root})
+  (cssi/upsert-css "componentcss" {:component root/x-root})
   ;(inspect/app-started! web-app)
-  (app/set-root! web-app root/Root {:initialize-state? true})
+  (app/set-root! web-app root/x-root {:initialize-state? true})
   (dr/initialize! web-app)
   (log/info "Starting session machine.")
   (.log js/console "mi folyik itt" @(:com.fulcrologic.fulcro.application/state-atom web-app))
   ;(uism/begin! SPA session/session-machine ::session/session
   ;  {:actor/login-form      root/Login
   ;   :actor/current-session root/Session)
-  (app/mount! web-app root/Root "app"))
+  (app/mount! web-app root/x-root "app"))
 
 
 
