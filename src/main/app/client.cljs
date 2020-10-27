@@ -11,16 +11,25 @@
     [com.fulcrologic.fulcro-css.css-injection :as cssi]
     [app.model.session :as session]
     [taoensso.timbre :as log]
+    [reagent.core :as reagent]
     [com.fulcrologic.fulcro.algorithms.denormalize :as fdn]
     [com.fulcrologic.fulcro.algorithms.merge :as merge]
     [com.fulcrologic.fulcro.routing.dynamic-routing :as dr]
     [com.fulcrologic.fulcro.inspect.inspect-client :as inspect]))
 
 
+
+
+(defn mount-root []
+  (reagent.dom/render [root/reagent-main]
+                      (.getElementById js/document "reagent")))
+
 (defn ^:export refresh []
   (log/info "Hot code Remount")
   (cssi/upsert-css "componentcss" {:component root/x-root})
-  (app/mount! web-app root/x-root "app"))
+  (app/mount! web-app root/x-root "app")
+  (mount-root))
+
 
 
 
@@ -31,12 +40,14 @@
   ;(inspect/app-started! web-app)
   (app/set-root! web-app root/x-root {:initialize-state? true})
   (dr/initialize! web-app)
+
   (log/info "Starting session machine.")
   (.log js/console "mi folyik itt" @(:com.fulcrologic.fulcro.application/state-atom web-app))
   ;(uism/begin! SPA session/session-machine ::session/session
   ;  {:actor/login-form      root/Login
   ;   :actor/current-session root/Session)
-  (app/mount! web-app root/x-root "app"))
+  (app/mount! web-app root/x-root "app")
+  (mount-root))
 
 
 
