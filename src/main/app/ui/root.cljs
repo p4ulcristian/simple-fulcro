@@ -23,10 +23,10 @@
 
 
 
-(def default-db {:eql {}
 
-                 :idents {:player/id {1 {:player/id 1 :player/name "Paul"}
-                                      2 {:player/id 2 :player/name "Gabor"}}}})
+(def default-db {:eql {}
+                 :idents {}
+                 :teszt "hello"})
 
 (dispatch [:initialize-db])
 
@@ -38,11 +38,27 @@
 
 
 
+(defn dissoc-in
+  [m [k & ks :as keys]]
+  (if ks
+    (if-let [nextmap (get m k)]
+      (let [newmap (dissoc-in nextmap ks)]
+        (if (seq newmap)
+          (assoc m k newmap)
+          (dissoc m k)))
+      m)
+    (dissoc m k)))
+
 (reg-event-db
-  :add-eql-model
-  (fn [db [_ {:keys [model query ident]}]]
-    (assoc-in db [:eql model] {:ident ident
-                               :query query})))
+  :add-eql
+  (fn [db [_ [model-key model]]]
+    (assoc-in db [:eql model-key] model)))
+
+(reg-event-db
+  :remove-eql
+  (fn [db [_ model-key]]
+    (dissoc-in db [:eql model-key])))
+
 
 (reg-event-db
   :assoc
@@ -72,25 +88,54 @@
 
 (defn build-eql-query [model all-models]
   (let [this (:query (get all-models model))]
-    (reduce
-      (fn [till-now next]
-        (vec (conj till-now (cond
-                              (keyword? next) next
-                              (map? next) (let [[to-join joined] (first next)]
-                                            (assoc {} to-join (cond
-                                                                (vector? joined) joined
-                                                                (keyword? joined) (build-eql-query joined all-models))))))))
-      []
-      this)))
+    (vec (remove nil?
+                 (reduce
+                   (fn [till-now next]
+                     (vec (conj till-now (cond
+                                           (keyword? next) next
+                                           (map? next) (let [[to-join joined] (first next)]
+                                                         (if
+                                                           (and (keyword? joined) (not (contains? all-models joined)))
+                                                           nil
+                                                           (assoc {} to-join (cond
+                                                                               (vector? joined) joined
+                                                                               (keyword? joined) (build-eql-query joined all-models)))))))))
+                   []
+                   this)))))
+
+
+
+
+(defn normalize-data [db data]
+  (let [idents (map :ident (mapv second (:eql db)))]
+    (.log js/console "miert"
+          (reduce
+            (fn [the-db now]
+              (let [this-ident (some #(if (contains? now %) % false)
+                                     idents)]
+                (.log js/console "nezd csak: " this-ident)
+                the-db))
+            db data))))
+
+
+
+
+
+(reg-event-db
+  :normalize-data
+  (fn [db [_ data]]
+    (normalize-data db data)))
+
 
 (reg-event-db
   :load-eql
-  (fn [db [_ {:keys [query model path]}]]
+  (fn [db [_ query model]]
     (.log js/console "maga a query: " (str  [{query (build-eql-query model (:eql db))}]))
     (ajax-post {:url "/api"
                 :params [{query (build-eql-query model (:eql db))}]
                 :handler #(do
-                            (dispatch [:assoc path %])
+                            (dispatch [:normalize-data (second (first %))])
+                            (dispatch [:assoc :teszt %])
                             (.log js/console "a valasz: " %))})
     db))
 
@@ -101,55 +146,70 @@
     (get db the-key)))
 
 (reg-sub
+  :db
+  (fn [db [_ the-key]]
+    db))
+
+(reg-sub
   :get-in
   (fn [db [_ the-keys]]
     (get-in db the-keys)))
 
-
-
-
 (reg-sub
-  :get-eql-model
+  :get-eql
   (fn [db [_ model]]
-    (build-eql-query model (:eql db))))
+    (str (build-eql-query :ui/game-station (:eql db)))))
 
 
-
-
-
-(dispatch [:add-eql-model {:model :player
-                           :query [:player/id :player/name]
-                           :ident :game-station/id}])
-(defn player []
-  [:div "Ez egy player"])
-
-
-"Miket tudnank osszevonni?
-* a queryt nem
-* a modelt meg a nevet igazabol megtudnank tenni, de mivan ha nem egyezik?
-* a path kell mert el kell menteni valahova
-* az ident is kell, tudjam milyen kulcs ala mentsem."
-
-(dispatch [:add-eql-model {:model :game-stations
-                           :query [:game-station/id :game-station/name {:game-station/player :player}]
-                           :ident :game-station/id}])
-(defn game-stations []
+(defn eql [[model-key model] content]
   (r/create-class
-    {:component-did-mount #(dispatch [:load-eql {:query :all-game-stations
-                                                 :model :game-stations
-                                                 :path  :game-stations}])
-     :reagent-render (fn []
-                       [:div
-                        [:div "a db-be " (str @(subscribe [:get :game-stations]))]
-                        [:div "Ezek a game-stationok"]])}))
-      ;[player]])})
+    {:component-did-mount #(dispatch [:add-eql [model-key model]])
+     :component-will-unmount #(dispatch [:remove-eql model-key])
+     :reagent-render (fn [[model-key model] content]
+                       content)}))
+
+
+(def eql-tree []
+  {:ui/game [:game/id [:game/name :game/id]]
+   :ui/game-station [:game-station/id [:game-station/name :game-station/id
+                                       {:game-station/player :ui/player}
+                                       {:game-station/game :ui/game}]]})
+
+(defn game []
+  [eql [:ui/game {:ident :game/id :query [:game/name :game/id]}]
+    [:div {:style {:padding "10px"}} [:h2 "Game:"]]])
+
+(defn player []
+  [eql [:ui/player {:ident :game-station/id :query [:player/name :player/id]}]
+    [:div {:style {:padding "10px"}} [:h2 "Player: "]]])
+
+(defn game-stations []
+  (let [menu? (r/atom :player)]
+    (fn []
+      [eql [:ui/game-station {:ident :game-station/id
+                              :query [:game-station/name :game-station/id
+                                      {:game-station/player :ui/player}
+                                      {:game-station/game :ui/game}]}]
+        [:div
+         [:button {:on-click #(reset! menu? :player)} "player"]
+         [:button {:on-click #(reset! menu? :game)} "game"]
+         [:button {:on-click #(reset! menu? false)} "semmi"]
+         [:button {:on-click #(dispatch [:load-eql :all-game-stations :ui/game-station])} "betoltes"]
+         (case @menu?
+           :player [player]
+           :game [game]
+           [:div "semmi"])
+         [:div {:style {:background "aliceblue" :padding "10px"}}
+          [:h2 "Ez a query: "]
+          (str @(subscribe [:get-eql :ui/game-station]))]
+         [:div {:style {:background "aliceblue" :padding "10px"}}
+          [:h2 "Ez a valasz: "]
+          (str @(subscribe [:get :teszt]))]]])))
+
 
 (defn reagent-main []
   [:div {:style {:padding "10px" :background "#BBB" :min-height "100vh"}}
    [:h1 "Szia Reagent, ugy hianyoztal!"]
-   ;[:h4 "Par adat:" @(subscribe [:get :eql])]
-   [:h5 {:style {:background "#999" :padding "10px"}}
-    "talan eql-be: "  (str  @(subscribe [:get-eql-model :game-stations]))]
    [game-stations]])
 
 
